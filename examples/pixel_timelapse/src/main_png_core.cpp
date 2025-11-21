@@ -11,7 +11,7 @@
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include "stb_image_write.h"
 
-#include "../../src/units_core.h"
+#include "units_core.h"
 
 namespace fs = std::filesystem;
 
