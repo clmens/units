@@ -1,0 +1,68 @@
+name: Benchmark
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - ki
+
+jobs:
+  benchmark:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y build-essential cmake python3
+    
+    - name: Configure CMake with OpenMP and Float
+      run: |
+        cmake -S . -B build \
+          -DCMAKE_BUILD_TYPE=Release \
+          -DUSE_OPENMP=ON \
+          -DUSE_FLOAT=ON \
+          -DUSE_PER_THREAD_ACCUM=OFF
+    
+    - name: Build
+      run: cmake --build build --config Release -j
+    
+    - name: Run benchmark 128x128
+      run: |
+        echo "Running 128x128 benchmark..."
+        ./build/bench/bench_units --width 128 --height 128 --steps 500 | tee bench_128x128.json
+    
+    - name: Run benchmark 512x512
+      run: |
+        echo "Running 512x512 benchmark..."
+        ./build/bench/bench_units --width 512 --height 512 --steps 200 | tee bench_512x512.json
+    
+    - name: Run benchmark 1024x1024
+      run: |
+        echo "Running 1024x1024 benchmark..."
+        ./build/bench/bench_units --width 1024 --height 1024 --steps 50 | tee bench_1024x1024.json
+    
+    - name: Combine results
+      run: |
+        echo "=== Benchmark Summary ===" | tee benchmark_summary.txt
+        echo "" | tee -a benchmark_summary.txt
+        echo "128x128 (500 steps):" | tee -a benchmark_summary.txt
+        cat bench_128x128.json | tee -a benchmark_summary.txt
+        echo "" | tee -a benchmark_summary.txt
+        echo "512x512 (200 steps):" | tee -a benchmark_summary.txt
+        cat bench_512x512.json | tee -a benchmark_summary.txt
+        echo "" | tee -a benchmark_summary.txt
+        echo "1024x1024 (50 steps):" | tee -a benchmark_summary.txt
+        cat bench_1024x1024.json | tee -a benchmark_summary.txt
+        cat benchmark_summary.txt
+    
+    - name: Upload benchmark results
+      uses: actions/upload-artifact@v4
+      with:
+        name: benchmark-results
+        path: |
+          bench_*.json
+          benchmark_summary.txt
