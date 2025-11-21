@@ -213,9 +213,6 @@ void UnitsCore::push()
 #ifdef _OPENMP
     #pragma omp parallel
     {
-        // thread-local accumulator to reduce contention (optional)
-        std::vector<real_t> local_accum;
-        local_accum.assign(0, 0.0); // will be resized on first use
         #pragma omp for schedule(static)
         for (std::size_t i = 0; i < N; ++i) {
             const int start = m_neighbor_index_start[i];

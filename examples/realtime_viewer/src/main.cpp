@@ -65,8 +65,8 @@ void convert_to_rgba(const std::vector<real_t>& values, std::vector<uint8_t>& pi
     for (std::size_t i = 0; i < values.size(); ++i) {
         real_t normalized = (values[i] - min_val) / range;
         // Clamp to [0, 1] to prevent overflow
-        normalized = std::min(real_t(1.0), std::max(real_t(0.0), normalized));
-        uint8_t intensity = static_cast<uint8_t>(normalized * 255.0);
+        normalized = std::clamp(normalized, real_t(0.0), real_t(1.0));
+        uint8_t intensity = static_cast<uint8_t>(normalized * real_t(255.0));
         
         pixels[i * 4 + 0] = intensity; // R
         pixels[i * 4 + 1] = intensity; // G

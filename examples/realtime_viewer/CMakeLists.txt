@@ -14,10 +14,11 @@ add_executable(realtime_viewer
 target_link_libraries(realtime_viewer PRIVATE units_core SDL2::SDL2)
 
 # Set optimization flags for Release builds
+# Using -O3 for consistency with benchmark tool
 if(CMAKE_BUILD_TYPE STREQUAL "Release" OR CMAKE_BUILD_TYPE STREQUAL "RelWithDebInfo")
     if(MSVC)
         target_compile_options(realtime_viewer PRIVATE /O2)
     else()
-        target_compile_options(realtime_viewer PRIVATE -O2)
+        target_compile_options(realtime_viewer PRIVATE -O3)
     endif()
 endif()
