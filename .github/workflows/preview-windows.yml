@@ -1,0 +1,46 @@
+name: preview-windows
+
+on:
+  push:
+    branches:
+      - wiki/add-generate-video-and-research
+  workflow_dispatch:
+
+jobs:
+  preview:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Install ffmpeg (Chocolatey)
+        shell: powershell
+        run: choco install ffmpeg -y
+
+      - name: Check for libx265 support and set codec
+        shell: powershell
+        run: |
+          $enc = ffmpeg -hide_banner -encoders 2>&1 | Select-String libx265 -Quiet
+          if ($enc) { Write-Host "libx265 is available"; echo "CODEC=libx265" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append }
+          else { Write-Host "libx265 not available, falling back to libx264"; echo "CODEC=libx264" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append }
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install numpy matplotlib tqdm
+
+      - name: Run generate_video preview (512x512, 300 frames)
+        shell: powershell
+        run: |
+          python generate_video.py --preview --width 512 --height 512 --frames 300 --fps 30 --output preview-512x512.mkv --colormap plasma --codec $env:CODEC
+
+      - name: Upload preview artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: preview-512x512
+          path: preview-512x512.mkv
