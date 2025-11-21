@@ -1,6 +1,0 @@
-/home/runner/work/units/units/build/CMakeFiles/units_core.dir
-/home/runner/work/units/units/build/CMakeFiles/edit_cache.dir
-/home/runner/work/units/units/build/CMakeFiles/rebuild_cache.dir
-/home/runner/work/units/units/build/bench/CMakeFiles/bench_units.dir
-/home/runner/work/units/units/build/bench/CMakeFiles/edit_cache.dir
-/home/runner/work/units/units/build/bench/CMakeFiles/rebuild_cache.dir
