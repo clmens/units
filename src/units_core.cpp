@@ -8,7 +8,7 @@
 #include <omp.h>
 #endif
 
-UnitsCore::UnitsCore(int width, int height, double max_value, bool torus)
+UnitsCore::UnitsCore(int width, int height, units_real max_value, bool torus)
     : m_width(width),
       m_height(height),
       m_max_value(max_value)
@@ -81,23 +81,23 @@ void UnitsCore::build_neighbors(bool torus)
     }
 }
 
-void UnitsCore::set_value(int x, int y, double v)
+void UnitsCore::set_value(int x, int y, units_real v)
 {
     set_value_index(static_cast<std::size_t>(y) * m_width + x, v);
 }
 
-void UnitsCore::set_value_index(std::size_t idx, double v)
+void UnitsCore::set_value_index(std::size_t idx, units_real v)
 {
     if (idx >= m_values.size()) return;
     m_values[idx] = v;
 }
 
-double UnitsCore::value_at(int x, int y) const
+units_real UnitsCore::value_at(int x, int y) const
 {
     return value_at_index(static_cast<std::size_t>(y) * m_width + x);
 }
 
-double UnitsCore::value_at_index(std::size_t idx) const
+units_real UnitsCore::value_at_index(std::size_t idx) const
 {
     return m_values[idx];
 }
@@ -112,7 +112,7 @@ void UnitsCore::update()
     #pragma omp parallel for schedule(static)
 #endif
     for (std::size_t i = 0; i < N; ++i) {
-        double v = m_values[i] + m_delta_steps[i] + m_deltas[i];
+        units_real v = m_values[i] + m_delta_steps[i] + m_deltas[i];
         if (v > m_max_value) v = m_max_value;
         else if (v < -m_max_value) v = -m_max_value;
         m_values[i] = v;
@@ -127,13 +127,13 @@ void UnitsCore::push()
 
     // To enable safe parallelization we will accumulate contributions into a temporary buffer
     // then apply them to m_delta_steps. This avoids simultaneous writes to the same slot.
-    std::vector<double> accum(N, 0.0);
+    std::vector<units_real> accum(N, 0.0);
 
 #ifdef _OPENMP
     #pragma omp parallel
     {
         // thread-local accumulator to reduce contention (optional)
-        std::vector<double> local_accum;
+        std::vector<units_real> local_accum;
         local_accum.assign(0, 0.0); // will be resized on first use
         #pragma omp for schedule(static)
         for (std::size_t i = 0; i < N; ++i) {
@@ -141,8 +141,8 @@ void UnitsCore::push()
             const int end = m_neighbor_index_start[i + 1];
             const int degree = end - start;
             if (degree == 0) continue;
-            double delta = m_deltas[i];
-            double contrib = -delta / static_cast<double>(degree); // amount to add to each neighbor
+            units_real delta = m_deltas[i];
+            units_real contrib = -delta / static_cast<units_real>(degree); // amount to add to each neighbor
             for (int ni = start; ni < end; ++ni) {
                 std::size_t nb = static_cast<std::size_t>(m_neighbors[ni]);
                 #pragma omp atomic
@@ -156,8 +156,8 @@ void UnitsCore::push()
         const int end = m_neighbor_index_start[i + 1];
         const int degree = end - start;
         if (degree == 0) continue;
-        double delta = m_deltas[i];
-        double contrib = -delta / static_cast<double>(degree);
+        units_real delta = m_deltas[i];
+        units_real contrib = -delta / static_cast<units_real>(degree);
         for (int ni = start; ni < end; ++ni) {
             std::size_t nb = static_cast<std::size_t>(m_neighbors[ni]);
             accum[nb] += contrib;

@@ -1,0 +1,61 @@
+name: Build and Run Timelapse Example
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main, ki ]
+    paths:
+      - 'src/**'
+      - 'examples/pixel_timelapse/**'
+      - 'CMakeLists.txt'
+      - 'scripts/make_timelapse.sh'
+      - '.github/workflows/timelapse_run.yml'
+
+jobs:
+  build-and-run:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y cmake g++ ffmpeg libomp-dev
+    
+    - name: Build with OpenMP and float precision
+      run: |
+        mkdir -p build
+        cd build
+        cmake -DUSE_OPENMP=ON -DUSE_FLOAT=ON ..
+        cmake --build . --target units_pixel_timelapse_core -- -j$(nproc)
+    
+    - name: Run timelapse example
+      run: |
+        ./build/examples/pixel_timelapse/units_pixel_timelapse_core \
+          --width 256 --height 256 --steps 100 --seed 42
+    
+    - name: Create MP4 timelapse
+      run: |
+        ffmpeg -framerate 25 \
+          -i examples/pixel_timelapse/frames_png_core/frame_%04d.png \
+          -pix_fmt yuv420p \
+          -y examples/pixel_timelapse/timelapse_colored_core.mp4
+    
+    - name: Upload timelapse artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: timelapse-video
+        path: examples/pixel_timelapse/timelapse_colored_core.mp4
+        retention-days: 30
+    
+    - name: Upload sample frames
+      uses: actions/upload-artifact@v4
+      with:
+        name: sample-frames
+        path: |
+          examples/pixel_timelapse/frames_png_core/frame_0000.png
+          examples/pixel_timelapse/frames_png_core/frame_0050.png
+          examples/pixel_timelapse/frames_png_core/frame_0099.png
+        retention-days: 30
