@@ -9,6 +9,7 @@
 // Provides a simple two-phase step: update() then push(), and a convenience step() that runs both.
 
 // Allow compile-time choice of float vs double precision
+// Define UNITS_USE_FLOAT to prefer float (smaller memory footprint)
 #ifdef UNITS_USE_FLOAT
 using units_real = float;
 #else
@@ -51,6 +52,13 @@ private:
     // flattened neighbor indices: for each cell, store contiguous block of neighbor indices
     std::vector<int> m_neighbor_index_start; // start offset into m_neighbors per cell
     std::vector<int> m_neighbors; // concatenated neighbor lists
+
+#if defined(USE_PER_THREAD_ACCUM)
+    // Per-thread accumulator buffer for push algorithm (allocated once, reused each step)
+    // Type matches the chosen precision (units_real). Allocation and use should be
+    // guarded by USE_PER_THREAD_ACCUM and OpenMP at the implementation sites.
+    std::vector<units_real> m_per_thread_accum;
+#endif
 };
 
 #endif // UNITS_CORE_H

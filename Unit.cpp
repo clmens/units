@@ -1,5 +1,4 @@
 #include "Unit.h"
-#include "cinder/Rand.h"
 #include <iostream>
 
 Unit::Unit(int _x, int _y, double max_value)

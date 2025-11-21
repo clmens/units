@@ -23,6 +23,14 @@ UnitsCore::UnitsCore(int width, int height, units_real max_value, bool torus)
 
     m_neighbor_index_start.assign(N + 1, 0); // extra sentinel at end
     build_neighbors(torus);
+
+#if defined(USE_PER_THREAD_ACCUM) && defined(_OPENMP)
+    // Pre-allocate per-thread accumulator buffer
+    // We allocate a single flat buffer of size (num_threads * N)
+    // Each thread gets a slice [thread_id * N, (thread_id + 1) * N)
+    int num_threads = omp_get_max_threads();
+    m_per_thread_accum.assign(static_cast<std::size_t>(num_threads) * N, 0.0);
+#endif
 }
 
 void UnitsCore::build_neighbors(bool torus)
@@ -95,13 +103,13 @@ void UnitsCore::set_value_index(std::size_t idx, units_real v)
 
 units_real UnitsCore::value_at(int x, int y) const
 {
-    if (x < 0 || x >= m_width || y < 0 || y >= m_height) return 0.0;
+    if (x < 0 || x >= m_width || y < 0 || y >= m_height) return static_cast<units_real>(0.0);
     return value_at_index(static_cast<std::size_t>(y) * m_width + x);
 }
 
 units_real UnitsCore::value_at_index(std::size_t idx) const
 {
-    if (idx >= m_values.size()) return 0.0;
+    if (idx >= m_values.size()) return static_cast<units_real>(0.0);
     return m_values[idx];
 }
 
@@ -127,6 +135,79 @@ void UnitsCore::update()
 void UnitsCore::push()
 {
     const std::size_t N = m_values.size();
+
+#if defined(USE_PER_THREAD_ACCUM) && defined(_OPENMP)
+    // ============================================================================
+    // Per-thread accumulator push algorithm (source-centric)
+    // ============================================================================
+    // Tradeoff: Avoids atomic operations by using per-thread local buffers.
+    // Each thread accumulates contributions to a private buffer, then we merge
+    // all per-thread buffers into m_delta_steps in a second parallel pass.
+    //
+    // Heuristic: This path is beneficial for large grids (1024x1024+) with many
+    // threads (8+) where atomic contention becomes a bottleneck. For smaller grids
+    // or fewer threads, the destination-centric path may be faster due to better
+    // cache locality and less memory bandwidth usage.
+    //
+    // Memory: Allocates (num_threads * N) buffer. For 1024x1024 grid with 16 threads
+    // and float, this is ~64MB. Pre-allocated in constructor to avoid per-step overhead.
+    // ============================================================================
+
+    const int num_threads = omp_get_max_threads();
+
+    // Phase 1: Each thread accumulates into its own slice of m_per_thread_accum
+    #pragma omp parallel
+    {
+        const int tid = omp_get_thread_num();
+        units_real* thread_accum = &m_per_thread_accum[static_cast<std::size_t>(tid) * N];
+
+        // Zero out this thread's accumulator slice
+        for (std::size_t i = 0; i < N; ++i) {
+            thread_accum[i] = 0.0;
+        }
+
+        // Source-centric: each thread processes a subset of source cells
+        #pragma omp for schedule(static) nowait
+        for (std::size_t i = 0; i < N; ++i) {
+            const int start = m_neighbor_index_start[i];
+            const int end = m_neighbor_index_start[i + 1];
+            const int degree = end - start;
+            if (degree == 0) continue;
+
+            units_real delta = m_deltas[i];
+            units_real contrib = -delta / static_cast<units_real>(degree);
+
+            // Accumulate to neighbors in this thread's local buffer
+            for (int ni = start; ni < end; ++ni) {
+                std::size_t nb = static_cast<std::size_t>(m_neighbors[ni]);
+                thread_accum[nb] += contrib;
+            }
+        }
+    }
+
+    // Phase 2: Merge all per-thread accumulators into m_delta_steps
+    // Each output cell is written by exactly one thread, so no atomics needed
+    #pragma omp parallel for schedule(static)
+    for (std::size_t i = 0; i < N; ++i) {
+        units_real sum = 0.0;
+        for (int tid = 0; tid < num_threads; ++tid) {
+            sum += m_per_thread_accum[static_cast<std::size_t>(tid) * N + i];
+        }
+        m_delta_steps[i] += sum;
+    }
+
+#else
+    // ============================================================================
+    // Destination-centric push algorithm with atomic accumulation (or serial fallback)
+    // ============================================================================
+    // Tradeoff: Uses atomic operations for thread-safe accumulation. Simple and
+    // memory-efficient (only one temporary buffer of size N). Good cache locality
+    // since we write to destinations that might be cached by other threads.
+    //
+    // Heuristic: Preferred for smaller grids (<512x512) or when OpenMP is not
+    // available or when USE_PER_THREAD_ACCUM is not enabled. Atomic overhead is
+    // acceptable when the number of concurrent writes to the same location is low.
+    // ============================================================================
 
     // To enable safe parallelization we will accumulate contributions into a temporary buffer
     // then apply them to m_delta_steps. This avoids simultaneous writes to the same slot.
@@ -169,4 +250,5 @@ void UnitsCore::push()
     for (std::size_t i = 0; i < N; ++i) {
         m_delta_steps[i] += accum[i];
     }
+#endif
 }

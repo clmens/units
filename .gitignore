@@ -1,3 +1,22 @@
+# Build artifacts
+build/
+_codeql_build_dir/
+_codeql_detected_source_root
+*.o
+*.a
+*.so
+*.dylib
+*.dll
+*.exe
+
+# CMake
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+Makefile
+*.cmake
+
+# IDE
 # Build directories
 build/
 cmake-build-*/
@@ -18,6 +37,14 @@ examples/pixel_timelapse/frames_png_core/
 *.swo
 *~
 
+# OS
+.DS_Store
+Thumbs.db
+
+# Output directories
+frames/
+bench_*.json
+benchmark_summary.txt
 # Compiled binaries
 *.exe
 *.out
