@@ -1,0 +1,94 @@
+name: Auto-create PR
+
+on:
+  push:
+    branches:
+      - perf-optimizations
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  create-pr:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create Pull Request
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { data: prs } = await github.rest.pulls.list({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              head: `${context.repo.owner}:perf-optimizations`,
+              base: 'ki',
+              state: 'open'
+            });
+            
+            if (prs.length === 0) {
+              const prBody = `## Performance Optimizations: Per-Thread Accumulators, Benchmark, and GPU Viewer Integration
+
+This PR implements comprehensive performance optimizations for the Units simulation framework, enabling fast simulation for very large grids (>=1024x1024) and providing GPU-accelerated realtime visualization.
+
+### Key Features
+
+1. **Per-thread accumulators** - Eliminate atomic operations for better many-core scaling
+2. **Float precision support** - Reduce memory bandwidth by 2x for large grids  
+3. **Microbenchmark tool** - JSON output for performance tracking
+4. **CI benchmark workflow** - Automated performance testing (128², 512², 1024²)
+5. **GPU-accelerated viewer** - OpenGL shader-based color mapping with PBO uploads
+6. **Comprehensive docs** - Platform-specific tuning for Radeon 7900 XT, Intel 9800X3D, cloud
+
+### Changes
+
+- \`.github/workflows/benchmark.yml\` - CI benchmark workflow
+- \`CMakeLists.txt\` - Top-level build with USE_OPENMP, USE_FLOAT, USE_PER_THREAD_ACCUM, USE_SIMD, USE_GPU_COLORMAP options
+- \`src/units_core.{h,cpp}\` - Float precision and per-thread accumulator implementation
+- \`bench/\` - Microbenchmark tool
+- \`examples/realtime_viewer/\` - GPU-accelerated SDL2+OpenGL viewer
+- \`README.md\` - Performance tuning guide
+
+### Build Example
+
+\`\`\`bash
+cmake -DCMAKE_BUILD_TYPE=Release \\
+      -DUSE_OPENMP=ON \\
+      -DUSE_FLOAT=ON \\
+      -DUSE_PER_THREAD_ACCUM=ON \\
+      -DUSE_GPU_COLORMAP=ON \\
+      -DUSE_SIMD=ON \\
+      ..
+cmake --build . -j
+\`\`\`
+
+### Benchmark
+
+\`\`\`bash
+./bench/bench_units --width 512 --height 512 --steps 200
+\`\`\`
+
+### Viewer
+
+\`\`\`bash
+./examples/realtime_viewer/units_realtime_viewer --width 1024 --height 1024 --fps 30
+\`\`\`
+
+See README.md for detailed performance tuning guidance and trade-offs.
+
+**Testing**: Verified building with various option combinations. Benchmark runs successfully. Ready for review.
+
+**Note**: Do not merge yet - PR is for review only as requested.`;
+
+              const { data: pr } = await github.rest.pulls.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title: 'perf: per-thread accumulators, benchmark, viewer integration and GPU upload optimizations',
+                head: 'perf-optimizations',
+                base: 'ki',
+                body: prBody
+              });
+              
+              console.log(`Created PR #${pr.number}: ${pr.html_url}`);
+            } else {
+              console.log(`PR already exists: ${prs[0].html_url}`);
+            }
