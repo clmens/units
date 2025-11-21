@@ -12,7 +12,6 @@ add_executable(units_pixel_timelapse
 )
 
 target_include_directories(units_pixel_timelapse PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../../)
-target_include_directories(units_pixel_timelapse PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../../)
 
 # Core-backed timelapse example (PNG output)
 add_executable(units_pixel_timelapse_core

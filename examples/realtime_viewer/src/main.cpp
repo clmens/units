@@ -48,30 +48,30 @@ ViewerConfig parse_args(int argc, char** argv) {
     return cfg;
 }
 
-// Helper function to convert real_t values to RGBA pixels
-void convert_to_rgba(const std::vector<real_t>& values, std::vector<uint8_t>& pixels, int width, int height) {
+// Helper function to convert units_real values to RGBA pixels
+void convert_to_rgba(const std::vector<units_real>& values, std::vector<uint8_t>& pixels, int width, int height) {
     if (values.empty()) {
         pixels.clear();
         return;
     }
     
     // Find min/max for normalization
-    real_t min_val = values[0];
-    real_t max_val = values[0];
+    units_real min_val = values[0];
+    units_real max_val = values[0];
     for (const auto& v : values) {
         if (v < min_val) min_val = v;
         if (v > max_val) max_val = v;
     }
     
-    real_t range = max_val - min_val;
+    units_real range = max_val - min_val;
     if (range < 1e-6) range = 1.0;
     
     pixels.resize(width * height * 4);
     for (std::size_t i = 0; i < values.size(); ++i) {
-        real_t normalized = (values[i] - min_val) / range;
+        units_real normalized = (values[i] - min_val) / range;
         // Clamp to [0, 1] to prevent overflow
-        normalized = std::clamp(normalized, real_t(0.0), real_t(1.0));
-        uint8_t intensity = static_cast<uint8_t>(normalized * real_t(255.0));
+        normalized = std::clamp(normalized, units_real(0.0), units_real(1.0));
+        uint8_t intensity = static_cast<uint8_t>(normalized * units_real(255.0));
         
         pixels[i * 4 + 0] = intensity; // R
         pixels[i * 4 + 1] = intensity; // G
@@ -112,7 +112,7 @@ public:
         return true;
     }
     
-    void upload(const std::vector<real_t>& values) {
+    void upload(const std::vector<units_real>& values) {
         if (!m_initialized || values.size() != static_cast<size_t>(m_width * m_height)) return;
         
         // Upload to texture via PBO for better performance
@@ -123,13 +123,13 @@ public:
             float* float_ptr = static_cast<float*>(ptr);
             
             // Find min/max for normalization
-            real_t min_val = values[0];
-            real_t max_val = values[0];
+            units_real min_val = values[0];
+            units_real max_val = values[0];
             for (const auto& v : values) {
                 if (v < min_val) min_val = v;
                 if (v > max_val) max_val = v;
             }
-            real_t range = max_val - min_val;
+            units_real range = max_val - min_val;
             if (range < 1e-6) range = 1.0;
             
             // Normalize and copy
@@ -297,7 +297,7 @@ int main(int argc, char** argv) {
     
     // Initialize based on scenario
     std::mt19937 rng(12345);
-    std::uniform_real_distribution<real_t> dist(-1.0, 1.0);
+    std::uniform_real_distribution<units_real> dist(-1.0, 1.0);
     
     const std::size_t N = static_cast<std::size_t>(cfg.width) * static_cast<std::size_t>(cfg.height);
     
