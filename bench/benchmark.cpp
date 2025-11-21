@@ -67,7 +67,7 @@ int main(int argc, char** argv) {
 
     // Initialize with random values
     std::mt19937 rng(cfg.seed);
-    std::uniform_real_distribution<real_t> dist(-1.0, 1.0);
+    std::uniform_real_distribution<units_real> dist(-1.0, 1.0);
     for (std::size_t i = 0; i < N; ++i) {
         core.set_value_index(i, dist(rng));
     }
