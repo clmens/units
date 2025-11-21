@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - perf-optimizations
+      - copilot/perf-optimizations-another-one
 
 permissions:
   contents: read
@@ -17,10 +18,14 @@ jobs:
         uses: actions/github-script@v7
         with:
           script: |
+            // Use perf-optimizations as head, or copilot branch if that's what was pushed
+            const headBranch = context.ref.replace('refs/heads/', '');
+            const targetHead = headBranch.includes('copilot') ? 'copilot/perf-optimizations-another-one' : 'perf-optimizations';
+            
             const { data: prs } = await github.rest.pulls.list({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              head: `${context.repo.owner}:perf-optimizations`,
+              head: `${context.repo.owner}:${targetHead}`,
               base: 'ki',
               state: 'open'
             });
@@ -83,7 +88,7 @@ See README.md for detailed performance tuning guidance and trade-offs.
                 owner: context.repo.owner,
                 repo: context.repo.repo,
                 title: 'perf: per-thread accumulators, benchmark, viewer integration and GPU upload optimizations',
-                head: 'perf-optimizations',
+                head: targetHead,
                 base: 'ki',
                 body: prBody
               });
