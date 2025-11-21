@@ -1,25 +1,6 @@
 #!/usr/bin/env python3
 """
-generate_video.py
-
-Generate an evolving 2D grid (width x height) starting from random values,
-simulate for N frames, and stream frames to ffmpeg to produce a visually
-lossless video.
-
-Usage examples:
-  python generate_video.py --width 1000 --height 1000 --frames 10000 --fps 30 --output out.mkv
-
-Requirements:
-  - Python 3.8+
-  - numpy
-  - ffmpeg installed and on PATH
-  - tqdm (optional, used if available)
-  - matplotlib (optional, for color maps; falls back to grayscale if absent)
-
-Notes:
-  - Default codec is ffv1 (lossless) inside an MKV container.
-  - Streaming avoids writing thousands of PNG files to disk.
-  - Ensure you have plenty of disk space for the final encoded file (tens of GB).
+Updated generate_video.py: default codec set to libx265 (HEVC lossless), improved visuals (additional dynamics, contrast/gamma), retained plasma colormap, and added safe defaults. Falls back to grayscale if matplotlib missing.
 """
 
 import argparse
@@ -31,9 +12,8 @@ import numpy as np
 try:
     from tqdm import tqdm
 except Exception:
-    tqdm = lambda x, **k: x  # fallback to identity iterator if tqdm not installed
+    tqdm = lambda x, **k: x
 
-# Optional matplotlib for colormaps
 try:
     from matplotlib import cm
     _HAS_MATPLOTLIB = True
@@ -41,16 +21,18 @@ except Exception:
     _HAS_MATPLOTLIB = False
 
 def parse_args():
-    p = argparse.ArgumentParser(description="Generate an evolving grid video (visually lossless).")
+    p = argparse.ArgumentParser(description="Generate an evolving grid video (visually lossless, HEVC default).")
     p.add_argument("--width", "-W", type=int, default=1000, help="frame width in pixels")
     p.add_argument("--height", "-H", type=int, default=1000, help="frame height in pixels")
     p.add_argument("--frames", "-n", type=int, default=10000, help="number of frames to generate")
     p.add_argument("--fps", type=int, default=30, help="frames per second for the video")
     p.add_argument("--seed", type=int, default=1337, help="random seed (reproducible)")
     p.add_argument("--noise", type=float, default=0.01, help="per-frame noise amplitude (0..1)")
+    p.add_argument("--contrast", type=float, default=1.0, help="global contrast multiplier")
+    p.add_argument("--gamma", type=float, default=1.0, help="gamma correction applied after colormap")
     p.add_argument("--output", "-o", type=str, default="out.mkv", help="output filename")
-    p.add_argument("--codec", choices=["ffv1", "libx264"], default="ffv1",
-                   help="lossless codec to use: ffv1 (default) or libx264 (crf 0, yuv444p)")
+    p.add_argument("--codec", choices=["ffv1", "libx264", "libx265"], default="libx265",
+                   help="lossless codec to use: ffv1, libx264 (H.264 lossless), or libx265 (HEVC lossless - default)")
     p.add_argument("--colormap", type=str, default="plasma",
                    help="colormap name to apply (matplotlib colormap). Use 'gray' for grayscale. Falls back to gray if matplotlib not available.")
     p.add_argument("--preview", action="store_true", help="generate only 300 frames for quick preview")
@@ -59,59 +41,82 @@ def parse_args():
 def build_ffmpeg_cmd(width, height, fps, output, codec):
     base = [
         "ffmpeg",
-        "-y",  # overwrite
+        "-y",
         "-f", "rawvideo",
         "-pixel_format", "rgb24",
         "-video_size", f"{width}x{height}",
         "-framerate", str(fps),
-        "-i", "-",  # read from stdin
+        "-i", "-",
     ]
     if codec == "ffv1":
-        # ffv1 is a widely supported lossless codec; keep rgb24 pixel format to avoid subsampling
         base += ["-c:v", "ffv1", "-pix_fmt", "rgb24", output]
-    else:
-        # libx264 lossless: use yuv444p (no chroma subsampling) and crf 0
+    elif codec == "libx264":
         base += ["-c:v", "libx264", "-crf", "0", "-preset", "veryslow", "-pix_fmt", "yuv444p", output]
+    else:  # libx265
+        # Use x265 lossless mode to keep visually lossless HEVC
+        base += ["-c:v", "libx265", "-preset", "veryslow", "-x265-params", "lossless=1", "-pix_fmt", "yuv444p", output]
     return base
 
-def evolve_step(grid, noise_amp):
-    # Weighted smoothing:
-    # center weight 0.4, N/S/E/W = 0.1, diagonals = 0.05 (sum = 1.0)
-    center = 0.4 * grid
-    ns = 0.1 * (np.roll(grid, 1, axis=0) + np.roll(grid, -1, axis=0))
-    ew = 0.1 * (np.roll(grid, 1, axis=1) + np.roll(grid, -1, axis=1))
-    diag = 0.05 * (np.roll(np.roll(grid, 1, axis=0), 1, axis=1) +
-                   np.roll(np.roll(grid, 1, axis=0), -1, axis=1) +
-                   np.roll(np.roll(grid, -1, axis=0), 1, axis=1) +
-                   np.roll(np.roll(grid, -1, axis=0), -1, axis=1))
+def evolve_step(grid, noise_amp, t, global_mod):
+    # Combination of diffusion, small advection and time-modulated perturbations
+    center = 0.36 * grid
+    ns = 0.11 * (np.roll(grid, 1, axis=0) + np.roll(grid, -1, axis=0))
+    ew = 0.11 * (np.roll(grid, 1, axis=1) + np.roll(grid, -1, axis=1))
+    diag = 0.055 * (
+        np.roll(np.roll(grid, 1, axis=0), 1, axis=1) +
+        np.roll(np.roll(grid, 1, axis=0), -1, axis=1) +
+        np.roll(np.roll(grid, -1, axis=0), 1, axis=1) +
+        np.roll(np.roll(grid, -1, axis=0), -1, axis=1)
+    )
     new = center + ns + ew + diag
+
+    # Add a small coherent sinusoidal modulation that moves over time for visual interest
+    h, w = grid.shape
+    ys = np.linspace(0, 2 * np.pi, h, endpoint=False)
+    xs = np.linspace(0, 2 * np.pi, w, endpoint=False)
+    X, Y = np.meshgrid(xs, ys)
+    phase = t * 0.02
+    wave = 0.02 * np.sin(3.0 * X + 2.0 * Y + phase)
+    new += wave * global_mod
+
+    # Add noise
     if noise_amp > 0:
         new += np.random.normal(loc=0.0, scale=noise_amp, size=grid.shape)
-    # clamp
+
+    # slight advection/shift to create flowing patterns
+    shift_y = int((np.sin(t * 0.001) * 2.0))
+    shift_x = int((np.cos(t * 0.0013) * 2.0))
+    new = np.roll(new, shift_y, axis=0)
+    new = np.roll(new, shift_x, axis=1)
+
     np.clip(new, 0.0, 1.0, out=new)
     return new
 
-def apply_colormap(grid, cmap_name):
-    """Map a float32 grid in [0,1] to uint8 RGB using matplotlib colormap (if available).
-    Falls back to grayscale if matplotlib not present or cmap_name == 'gray'."""
+def apply_colormap_and_tone(rgb_f, contrast, gamma, cmap_name):
+    # rgb_f expected float in 0..1 for each channel
+    # apply contrast and gamma
+    rgb = np.clip(rgb_f * contrast, 0.0, 1.0)
+    if gamma != 1.0:
+        rgb = np.power(rgb, 1.0 / gamma)
+    rgb_u8 = (rgb * 255.0).astype(np.uint8)
+    return rgb_u8
+
+def map_grid_to_rgb(grid, cmap_name, contrast, gamma):
     if cmap_name is None:
         cmap_name = 'gray'
     if cmap_name.lower() == 'gray' or not _HAS_MATPLOTLIB:
-        # grayscale fallback
         frame_u8 = (np.clip(grid, 0.0, 1.0) * 255.0).astype(np.uint8)
         rgb = np.stack([frame_u8, frame_u8, frame_u8], axis=2)
-        return rgb
+        return apply_colormap_and_tone(rgb.astype(np.float32) / 255.0, contrast, gamma, cmap_name)
+
     try:
         cmap = cm.get_cmap(cmap_name)
     except Exception:
-        # fallback to plasma if invalid name
         cmap = cm.get_cmap('plasma')
 
-    # cmap expects values in [0,1], returns NxMx4 RGBA floats
-    rgba = cmap(grid)  # shape (H, W, 4)
+    rgba = cmap(grid)
     rgbf = rgba[:, :, :3]
-    rgb = (np.clip(rgbf, 0.0, 1.0) * 255.0).astype(np.uint8)
-    return rgb
+    return apply_colormap_and_tone(rgbf, contrast, gamma, cmap_name)
 
 def main():
     args = parse_args()
@@ -125,6 +130,8 @@ def main():
     output = args.output
     codec = args.codec
     cmap_name = args.colormap
+    contrast = args.contrast
+    gamma = args.gamma
 
     if shutil.which("ffmpeg") is None:
         print("Error: ffmpeg not found on PATH. Install ffmpeg and try again.", file=sys.stderr)
@@ -134,7 +141,7 @@ def main():
         print("Warning: matplotlib not installed, falling back to grayscale despite colormap request.")
 
     print(f"Generating {frames} frames of {width}x{height} at {fps} fps -> {output}")
-    print(f"Codec: {codec}, seed: {seed}, noise_amp: {noise_amp}, colormap: {cmap_name}")
+    print(f"Codec: {codec}, seed: {seed}, noise_amp: {noise_amp}, colormap: {cmap_name}, contrast: {contrast}, gamma: {gamma}")
     estimated_raw_gb = (width * height * 3 * frames) / (1024**3)
     print(f"Estimated raw streamed data: ~{estimated_raw_gb:.2f} GB (final file will still be large)")
 
@@ -144,24 +151,16 @@ def main():
 
     rng = np.random.default_rng(seed)
 
-    # initialize grid with random values in [0,1)
     grid = rng.random((height, width), dtype=np.float32)
 
-    # spawn ffmpeg process
     proc = subprocess.Popen(ffmpeg_cmd, stdin=subprocess.PIPE)
 
     try:
         for i in tqdm(range(frames), desc="frames"):
-            # evolve grid
-            grid = evolve_step(grid, noise_amp)
-
-            # apply colormap / convert to uint8 RGB
-            rgb = apply_colormap(grid, cmap_name)
-
-            # write raw frame to ffmpeg stdin
+            grid = evolve_step(grid, noise_amp, i, global_mod=0.6)
+            rgb = map_grid_to_rgb(grid, cmap_name, contrast, gamma)
             proc.stdin.write(rgb.tobytes())
 
-        # close stdin to signal EOF to ffmpeg
         proc.stdin.close()
         ret = proc.wait()
         if ret != 0:
