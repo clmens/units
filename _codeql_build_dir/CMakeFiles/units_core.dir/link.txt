@@ -1,0 +1,2 @@
+/usr/bin/ar qc libunits_core.a CMakeFiles/units_core.dir/src/units_core.cpp.o
+/usr/bin/ranlib libunits_core.a

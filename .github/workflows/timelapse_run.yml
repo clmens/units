@@ -11,6 +11,9 @@ on:
       - 'scripts/make_timelapse.sh'
       - '.github/workflows/timelapse_run.yml'
 
+permissions:
+  contents: read
+
 jobs:
   build-and-run:
     runs-on: ubuntu-latest

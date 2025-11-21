@@ -1,0 +1,10 @@
+/home/runner/work/units/units/_codeql_build_dir/CMakeFiles/units_core.dir
+/home/runner/work/units/units/_codeql_build_dir/CMakeFiles/edit_cache.dir
+/home/runner/work/units/units/_codeql_build_dir/CMakeFiles/rebuild_cache.dir
+/home/runner/work/units/units/_codeql_build_dir/examples/console_app/CMakeFiles/units_console.dir
+/home/runner/work/units/units/_codeql_build_dir/examples/console_app/CMakeFiles/edit_cache.dir
+/home/runner/work/units/units/_codeql_build_dir/examples/console_app/CMakeFiles/rebuild_cache.dir
+/home/runner/work/units/units/_codeql_build_dir/examples/pixel_timelapse/CMakeFiles/units_pixel_timelapse.dir
+/home/runner/work/units/units/_codeql_build_dir/examples/pixel_timelapse/CMakeFiles/units_pixel_timelapse_core.dir
+/home/runner/work/units/units/_codeql_build_dir/examples/pixel_timelapse/CMakeFiles/edit_cache.dir
+/home/runner/work/units/units/_codeql_build_dir/examples/pixel_timelapse/CMakeFiles/rebuild_cache.dir
