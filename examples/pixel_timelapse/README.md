@@ -92,3 +92,60 @@ cmake -DCMAKE_BUILD_TYPE=Release -DUSE_OPENMP=ON -DUSE_FLOAT=ON -DUSE_PER_THREAD
 4. Always use **Release** build type for benchmarking
 5. Run with multiple steps (100+) to get accurate steady-state performance
 
+### Recommended Build Flags for Specific Hardware
+
+For high-performance workstations with modern CPUs and GPUs:
+
+**AMD Radeon 7900 XT + AMD Ryzen 9800X3D:**
+```bash
+cmake -DCMAKE_BUILD_TYPE=Release \
+      -DUSE_OPENMP=ON \
+      -DUSE_FLOAT=ON \
+      -DUSE_PER_THREAD_ACCUM=ON \
+      -DUSE_GPU_COLORMAP=ON \
+      -DCMAKE_CXX_FLAGS="-march=znver4 -mtune=znver4"
+```
+
+**Intel 9800X3D (or similar high core-count CPUs):**
+```bash
+cmake -DCMAKE_BUILD_TYPE=Release \
+      -DUSE_OPENMP=ON \
+      -DUSE_FLOAT=ON \
+      -DUSE_PER_THREAD_ACCUM=ON \
+      -DCMAKE_CXX_FLAGS="-march=native -mtune=native"
+```
+
+**Cloud instances (generic):**
+```bash
+cmake -DCMAKE_BUILD_TYPE=Release \
+      -DUSE_OPENMP=ON \
+      -DUSE_FLOAT=ON \
+      -DUSE_PER_THREAD_ACCUM=ON
+```
+
+### Running CI Benchmarks
+
+The repository includes a GitHub Actions workflow that runs benchmarks automatically on the `ki` branch:
+
+**Manually trigger the benchmark workflow:**
+1. Go to Actions tab in GitHub
+2. Select "Benchmark" workflow
+3. Click "Run workflow" → select `ki` branch → Run
+
+**View benchmark results:**
+- Artifacts are uploaded as `benchmark-results-per-thread-ON` and `benchmark-results-per-thread-OFF`
+- Results include JSON files for each grid size and a summary text file
+- Check the workflow logs for a quick summary table
+
+**Local reproduction:**
+```bash
+# Build with the same flags as CI
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DUSE_OPENMP=ON -DUSE_FLOAT=ON -DUSE_PER_THREAD_ACCUM=ON
+cmake --build build -j
+
+# Run the same benchmarks
+./build/bench/bench_units --width 128 --height 128 --steps 500
+./build/bench/bench_units --width 512 --height 512 --steps 200
+./build/bench/bench_units --width 1024 --height 1024 --steps 50
+```
+

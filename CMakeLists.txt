@@ -8,6 +8,8 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 option(USE_OPENMP "Enable OpenMP parallelization" OFF)
 option(USE_FLOAT "Use float instead of double for real_t" OFF)
 option(USE_PER_THREAD_ACCUM "Use per-thread accumulators in push (requires OpenMP)" OFF)
+option(USE_SIMD "Enable SIMD optimizations (experimental)" OFF)
+option(USE_GPU_COLORMAP "Enable GPU-based colormap in realtime_viewer (requires OpenGL)" ON)
 
 # OpenMP support
 if(USE_OPENMP)
@@ -36,6 +38,12 @@ if(USE_PER_THREAD_ACCUM)
     message(STATUS "Per-thread accumulators enabled")
 endif()
 
+# Define USE_SIMD if enabled
+if(USE_SIMD)
+    add_compile_definitions(USE_SIMD)
+    message(STATUS "SIMD optimizations enabled (experimental)")
+endif()
+
 # Static library for UnitsCore
 add_library(units_core STATIC
     src/units_core.cpp
@@ -56,6 +64,18 @@ add_subdirectory(bench)
 # Optional: add realtime_viewer if SDL2 is available
 find_package(SDL2 QUIET)
 if(SDL2_FOUND)
+    # Check if OpenGL is available for GPU colormap
+    find_package(OpenGL QUIET)
+    if(OPENGL_FOUND AND USE_GPU_COLORMAP)
+        set(GPU_COLORMAP_AVAILABLE ON)
+        message(STATUS "OpenGL found - GPU colormap will be available in realtime_viewer")
+    else()
+        set(GPU_COLORMAP_AVAILABLE OFF)
+        if(USE_GPU_COLORMAP AND NOT OPENGL_FOUND)
+            message(STATUS "USE_GPU_COLORMAP=ON but OpenGL not found - using CPU fallback")
+        endif()
+    endif()
+    
     add_subdirectory(examples/realtime_viewer)
     message(STATUS "SDL2 found - realtime_viewer will be built")
 else()
