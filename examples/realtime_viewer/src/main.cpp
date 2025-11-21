@@ -7,6 +7,11 @@
 #include <string>
 #include <vector>
 
+#ifdef USE_GPU_COLORMAP
+#include <SDL2/SDL_opengl.h>
+#include <GL/gl.h>
+#endif
+
 struct ViewerConfig {
     int width = 256;
     int height = 256;
@@ -75,6 +80,114 @@ void convert_to_rgba(const std::vector<real_t>& values, std::vector<uint8_t>& pi
     }
 }
 
+#ifdef USE_GPU_COLORMAP
+// GPU-accelerated colormap rendering using OpenGL
+// Uploads float buffer as R32F texture and uses a shader for colormap
+class GPUColormapRenderer {
+public:
+    GPUColormapRenderer(int width, int height) 
+        : m_width(width), m_height(height), m_texture(0), m_pbo(0), m_initialized(false) {}
+    
+    ~GPUColormapRenderer() {
+        cleanup();
+    }
+    
+    bool init() {
+        // Create R32F texture for float data
+        glGenTextures(1, &m_texture);
+        glBindTexture(GL_TEXTURE_2D, m_texture);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_R32F, m_width, m_height, 0, GL_RED, GL_FLOAT, nullptr);
+        
+        // Create PBO for asynchronous uploads (optional optimization)
+        glGenBuffers(1, &m_pbo);
+        glBindBuffer(GL_PIXEL_UNPACK_BUFFER, m_pbo);
+        glBufferData(GL_PIXEL_UNPACK_BUFFER, m_width * m_height * sizeof(float), nullptr, GL_STREAM_DRAW);
+        glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
+        
+        m_initialized = true;
+        return true;
+    }
+    
+    void upload(const std::vector<real_t>& values) {
+        if (!m_initialized || values.size() != static_cast<size_t>(m_width * m_height)) return;
+        
+        // Upload to texture via PBO for better performance
+        glBindBuffer(GL_PIXEL_UNPACK_BUFFER, m_pbo);
+        void* ptr = glMapBuffer(GL_PIXEL_UNPACK_BUFFER, GL_WRITE_ONLY);
+        if (ptr) {
+            // Convert to float if needed and normalize
+            float* float_ptr = static_cast<float*>(ptr);
+            
+            // Find min/max for normalization
+            real_t min_val = values[0];
+            real_t max_val = values[0];
+            for (const auto& v : values) {
+                if (v < min_val) min_val = v;
+                if (v > max_val) max_val = v;
+            }
+            real_t range = max_val - min_val;
+            if (range < 1e-6) range = 1.0;
+            
+            // Normalize and copy
+            for (size_t i = 0; i < values.size(); ++i) {
+                float_ptr[i] = static_cast<float>((values[i] - min_val) / range);
+            }
+            
+            glUnmapBuffer(GL_PIXEL_UNPACK_BUFFER);
+        }
+        
+        // Upload to texture
+        glBindTexture(GL_TEXTURE_2D, m_texture);
+        glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, m_width, m_height, GL_RED, GL_FLOAT, 0);
+        glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
+    }
+    
+    void render() {
+        if (!m_initialized) return;
+        
+        glEnable(GL_TEXTURE_2D);
+        glBindTexture(GL_TEXTURE_2D, m_texture);
+        
+        // Simple colormap: grayscale (R channel mapped to RGB)
+        // In a full implementation, you could use a fragment shader for more complex colormaps
+        glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
+        
+        // Render fullscreen quad
+        glBegin(GL_QUADS);
+        glTexCoord2f(0.0f, 0.0f); glVertex2f(-1.0f, -1.0f);
+        glTexCoord2f(1.0f, 0.0f); glVertex2f( 1.0f, -1.0f);
+        glTexCoord2f(1.0f, 1.0f); glVertex2f( 1.0f,  1.0f);
+        glTexCoord2f(0.0f, 1.0f); glVertex2f(-1.0f,  1.0f);
+        glEnd();
+        
+        glDisable(GL_TEXTURE_2D);
+    }
+    
+private:
+    void cleanup() {
+        if (m_texture) {
+            glDeleteTextures(1, &m_texture);
+            m_texture = 0;
+        }
+        if (m_pbo) {
+            glDeleteBuffers(1, &m_pbo);
+            m_pbo = 0;
+        }
+        m_initialized = false;
+    }
+    
+    int m_width;
+    int m_height;
+    GLuint m_texture;
+    GLuint m_pbo;
+    bool m_initialized;
+};
+#endif
+
 int main(int argc, char** argv) {
     ViewerConfig cfg = parse_args(argc, argv);
     
@@ -89,11 +202,56 @@ int main(int argc, char** argv) {
         return 1;
     }
     
-    // Create window
+#ifdef USE_GPU_COLORMAP
+    // Use OpenGL for GPU colormap
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 2);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 1);
+    SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
+    
     int window_width = cfg.width * cfg.scale;
     int window_height = cfg.height * cfg.scale;
     SDL_Window* window = SDL_CreateWindow(
-        "Units Realtime Viewer",
+        "Units Realtime Viewer (GPU)",
+        SDL_WINDOWPOS_CENTERED,
+        SDL_WINDOWPOS_CENTERED,
+        window_width,
+        window_height,
+        SDL_WINDOW_SHOWN | SDL_WINDOW_OPENGL
+    );
+    
+    if (!window) {
+        std::cerr << "SDL_CreateWindow failed: " << SDL_GetError() << "\n";
+        SDL_Quit();
+        return 1;
+    }
+    
+    SDL_GLContext gl_context = SDL_GL_CreateContext(window);
+    if (!gl_context) {
+        std::cerr << "SDL_GL_CreateContext failed: " << SDL_GetError() << "\n";
+        SDL_DestroyWindow(window);
+        SDL_Quit();
+        return 1;
+    }
+    
+    SDL_GL_SetSwapInterval(1); // Enable vsync
+    
+    // Initialize GPU renderer
+    GPUColormapRenderer gpu_renderer(cfg.width, cfg.height);
+    if (!gpu_renderer.init()) {
+        std::cerr << "Failed to initialize GPU renderer\n";
+        SDL_GL_DeleteContext(gl_context);
+        SDL_DestroyWindow(window);
+        SDL_Quit();
+        return 1;
+    }
+    
+    std::cout << "Using GPU colormap rendering (OpenGL)\n";
+#else
+    // Use SDL renderer for CPU fallback
+    int window_width = cfg.width * cfg.scale;
+    int window_height = cfg.height * cfg.scale;
+    SDL_Window* window = SDL_CreateWindow(
+        "Units Realtime Viewer (CPU)",
         SDL_WINDOWPOS_CENTERED,
         SDL_WINDOWPOS_CENTERED,
         window_width,
@@ -107,7 +265,6 @@ int main(int argc, char** argv) {
         return 1;
     }
     
-    // Create renderer
     SDL_Renderer* renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED);
     if (!renderer) {
         std::cerr << "SDL_CreateRenderer failed: " << SDL_GetError() << "\n";
@@ -116,7 +273,6 @@ int main(int argc, char** argv) {
         return 1;
     }
     
-    // Create texture for visualization
     SDL_Texture* texture = SDL_CreateTexture(
         renderer,
         SDL_PIXELFORMAT_RGBA32,
@@ -132,6 +288,9 @@ int main(int argc, char** argv) {
         SDL_Quit();
         return 1;
     }
+    
+    std::cout << "Using CPU colormap rendering (SDL)\n";
+#endif
     
     // Create UnitsCore simulation
     UnitsCore core(cfg.width, cfg.height, 1.0, true);
@@ -170,7 +329,9 @@ int main(int argc, char** argv) {
         }
     }
     
-    std::vector<uint8_t> pixels;
+#ifndef USE_GPU_COLORMAP
+    std::vector<uint8_t> pixels;  // Only needed for CPU path
+#endif
     bool running = true;
     SDL_Event event;
     
@@ -196,16 +357,22 @@ int main(int argc, char** argv) {
         // Step simulation
         core.step();
         
-        // Convert values to RGBA pixels
-        convert_to_rgba(core.values(), pixels, cfg.width, cfg.height);
+#ifdef USE_GPU_COLORMAP
+        // GPU rendering path
+        gpu_renderer.upload(core.values());
         
-        // Update texture
+        glClear(GL_COLOR_BUFFER_BIT);
+        gpu_renderer.render();
+        SDL_GL_SwapWindow(window);
+#else
+        // CPU rendering path
+        convert_to_rgba(core.values(), pixels, cfg.width, cfg.height);
         SDL_UpdateTexture(texture, nullptr, pixels.data(), cfg.width * 4);
         
-        // Render
         SDL_RenderClear(renderer);
         SDL_RenderCopy(renderer, texture, nullptr, nullptr);
         SDL_RenderPresent(renderer);
+#endif
         
         // Frame rate control
         Uint32 frame_time = SDL_GetTicks() - frame_start;
@@ -215,8 +382,12 @@ int main(int argc, char** argv) {
     }
     
     // Cleanup
+#ifdef USE_GPU_COLORMAP
+    SDL_GL_DeleteContext(gl_context);
+#else
     SDL_DestroyTexture(texture);
     SDL_DestroyRenderer(renderer);
+#endif
     SDL_DestroyWindow(window);
     SDL_Quit();
     
