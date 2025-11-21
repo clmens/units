@@ -97,7 +97,7 @@ int main(int argc, char** argv) {
 
     // Determine precision
     const char* precision = 
-#ifdef USE_FLOAT
+#ifdef UNITS_USE_FLOAT
         "float";
 #else
         "double";

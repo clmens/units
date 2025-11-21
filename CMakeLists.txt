@@ -23,7 +23,7 @@ endif()
 
 # Define real_t based on USE_FLOAT option
 if(USE_FLOAT)
-    add_compile_definitions(USE_FLOAT)
+    add_compile_definitions(UNITS_USE_FLOAT)
     message(STATUS "Using float for real_t")
 else()
     message(STATUS "Using double for real_t")
