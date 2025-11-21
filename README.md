@@ -2,6 +2,16 @@
 
 A high-performance cellular simulation engine optimized for large grids with configurable precision and parallelization strategies.
 
+## Repository Purpose
+
+This repository serves as a **high-performance reference implementation** and **performance playground** for the Units cellular simulation engine. It focuses on:
+
+- **Optimized core engine**: Fast, cache-friendly cellular automata with configurable precision and parallelization
+- **Comprehensive benchmarking**: Performance testing and optimization research
+- **Real-time visualization**: GPU-accelerated viewer for interactive exploration
+
+Future artistic and experimental "brain" directions may be explored in separate repositories (e.g., `netted-units`), while this repository remains the canonical performance reference and engine implementation.
+
 ## Features
 
 - **Cache-friendly core**: Flat arrays and integer neighbor indices for efficient memory access
