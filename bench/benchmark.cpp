@@ -5,6 +5,10 @@
 #include <string>
 #include <cstring>
 
+#ifdef _OPENMP
+#include <omp.h>
+#endif
+
 // Simple CLI argument parser
 struct BenchConfig {
     int width = 128;
@@ -85,29 +89,34 @@ int main(int argc, char** argv) {
     double time_s = elapsed.count();
     double steps_per_s = cfg.steps / time_s;
 
-    // Print results in JSON-like format
-    std::cout << "{\n"
-              << "  \"width\": " << cfg.width << ",\n"
-              << "  \"height\": " << cfg.height << ",\n"
-              << "  \"steps\": " << cfg.steps << ",\n"
-              << "  \"time_s\": " << time_s << ",\n"
-              << "  \"steps_per_s\": " << steps_per_s << ",\n"
-              << "  \"cells\": " << N << ",\n"
-#ifdef USE_FLOAT
-              << "  \"use_float\": true,\n"
-#else
-              << "  \"use_float\": false,\n"
-#endif
+    // Determine number of threads
+    int num_threads = 1;
 #ifdef _OPENMP
-              << "  \"use_openmp\": true,\n"
-#else
-              << "  \"use_openmp\": false,\n"
+    num_threads = omp_get_max_threads();
 #endif
+
+    // Determine precision
+    const char* precision = 
+#ifdef USE_FLOAT
+        "float";
+#else
+        "double";
+#endif
+
+    // Print results as single JSON line
+    std::cout << "{\"width\": " << cfg.width
+              << ", \"height\": " << cfg.height
+              << ", \"steps\": " << cfg.steps
+              << ", \"time_s\": " << time_s
+              << ", \"steps_per_s\": " << steps_per_s
+              << ", \"use_per_thread_accum\": "
 #ifdef USE_PER_THREAD_ACCUM
-              << "  \"use_per_thread_accum\": true\n"
+              << "true"
 #else
-              << "  \"use_per_thread_accum\": false\n"
+              << "false"
 #endif
+              << ", \"threads\": " << num_threads
+              << ", \"precision\": \"" << precision << "\""
               << "}\n";
 
     return 0;
