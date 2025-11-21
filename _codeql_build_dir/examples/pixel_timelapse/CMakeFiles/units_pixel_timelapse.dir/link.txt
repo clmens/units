@@ -1,1 +1,0 @@
-/home/runner/work/units/.codeql-scratch/dbs/cpp/working/autobuild/bin/c++ -O3 -DNDEBUG -Wl,--dependency-file=CMakeFiles/units_pixel_timelapse.dir/link.d CMakeFiles/units_pixel_timelapse.dir/src/main.cpp.o CMakeFiles/units_pixel_timelapse.dir/__/__/Unit.cpp.o CMakeFiles/units_pixel_timelapse.dir/__/__/Net.cpp.o -o units_pixel_timelapse
