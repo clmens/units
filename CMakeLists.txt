@@ -8,6 +8,15 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 option(USE_OPENMP "Enable OpenMP parallelization" OFF)
 option(USE_FLOAT "Use float instead of double for real_t" OFF)
 option(USE_PER_THREAD_ACCUM "Use per-thread accumulators in push (requires OpenMP)" OFF)
+option(USE_SIMD "Enable SIMD optimizations (experimental)" OFF)
+
+# Conditionally enable GPU colormap (ON by default if OpenGL is available)
+find_package(OpenGL QUIET)
+if(OPENGL_FOUND)
+    option(USE_GPU_COLORMAP "Enable GPU-accelerated colormap in realtime_viewer (requires OpenGL)" ON)
+else()
+    option(USE_GPU_COLORMAP "Enable GPU-accelerated colormap in realtime_viewer (requires OpenGL)" OFF)
+endif()
 
 # OpenMP support
 if(USE_OPENMP)
@@ -34,6 +43,15 @@ if(USE_PER_THREAD_ACCUM)
     endif()
     add_compile_definitions(USE_PER_THREAD_ACCUM)
     message(STATUS "Per-thread accumulators enabled")
+endif()
+
+# SIMD optimizations (experimental)
+if(USE_SIMD)
+    message(STATUS "SIMD optimizations enabled (experimental)")
+    add_compile_definitions(USE_SIMD)
+    if(NOT MSVC)
+        add_compile_options(-msse4.2)
+    endif()
 endif()
 
 # Static library for UnitsCore
