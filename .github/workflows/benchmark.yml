@@ -1,0 +1,76 @@
+name: Benchmark
+
+on:
+  push:
+    branches: [ perf-optimizations, ki ]
+  pull_request:
+    branches: [ ki ]
+  workflow_dispatch:
+
+jobs:
+  benchmark:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y cmake build-essential libomp-dev
+    
+    - name: Configure CMake
+      run: |
+        mkdir -p build
+        cd build
+        cmake -DCMAKE_BUILD_TYPE=Release \
+              -DUSE_OPENMP=ON \
+              -DUSE_FLOAT=ON \
+              -DUSE_PER_THREAD_ACCUM=ON \
+              ..
+    
+    - name: Build
+      run: |
+        cd build
+        cmake --build . --config Release -j$(nproc)
+    
+    - name: Run benchmark 128x128
+      run: |
+        cd build
+        ./bench/bench_units --width 128 --height 128 --steps 500 > bench_128.json
+        cat bench_128.json
+    
+    - name: Run benchmark 512x512
+      run: |
+        cd build
+        ./bench/bench_units --width 512 --height 512 --steps 200 > bench_512.json
+        cat bench_512.json
+    
+    - name: Run benchmark 1024x1024
+      run: |
+        cd build
+        ./bench/bench_units --width 1024 --height 1024 --steps 50 > bench_1024.json
+        cat bench_1024.json
+    
+    - name: Generate summary
+      run: |
+        echo "## Benchmark Results" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "| Grid Size | Steps | Time (s) | Steps/s | Per-thread Accum |" >> $GITHUB_STEP_SUMMARY
+        echo "|-----------|-------|----------|---------|------------------|" >> $GITHUB_STEP_SUMMARY
+        
+        for file in build/bench_*.json; do
+          python3 << 'EOF'
+import json
+import sys
+with open(sys.argv[1]) as f:
+    data = json.load(f)
+    print(f"| {data['width']}x{data['height']} | {data['steps']} | {data['time_s']:.3f} | {data['steps_per_s']:.2f} | {data['use_per_thread_accum']} |")
+EOF
+        done >> $GITHUB_STEP_SUMMARY
+    
+    - name: Upload benchmark results
+      uses: actions/upload-artifact@v3
+      with:
+        name: benchmark-results
+        path: build/bench_*.json

@@ -44,6 +44,11 @@ private:
     // flattened neighbor indices: for each cell, store contiguous block of neighbor indices
     std::vector<int> m_neighbor_index_start; // start offset into m_neighbors per cell
     std::vector<int> m_neighbors; // concatenated neighbor lists
+
+#if defined(USE_PER_THREAD_ACCUM) && defined(_OPENMP)
+    // Per-thread accumulator buffer for lock-free push (compile-time option)
+    std::vector<double> m_thread_accum;
+#endif
 };
 
 #endif // UNITS_CORE_H
