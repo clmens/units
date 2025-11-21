@@ -83,6 +83,7 @@ void UnitsCore::build_neighbors(bool torus)
 
 void UnitsCore::set_value(int x, int y, units_real v)
 {
+    if (x < 0 || x >= m_width || y < 0 || y >= m_height) return;
     set_value_index(static_cast<std::size_t>(y) * m_width + x, v);
 }
 
@@ -94,11 +95,13 @@ void UnitsCore::set_value_index(std::size_t idx, units_real v)
 
 units_real UnitsCore::value_at(int x, int y) const
 {
+    if (x < 0 || x >= m_width || y < 0 || y >= m_height) return 0.0;
     return value_at_index(static_cast<std::size_t>(y) * m_width + x);
 }
 
 units_real UnitsCore::value_at_index(std::size_t idx) const
 {
+    if (idx >= m_values.size()) return 0.0;
     return m_values[idx];
 }
 
