@@ -17,6 +17,20 @@ Makefile
 *.cmake
 
 # IDE
+# Build directories
+build/
+cmake-build-*/
+_codeql_build_dir/
+_codeql_detected_source_root
+
+# Generated frames and videos
+examples/pixel_timelapse/frames/
+examples/pixel_timelapse/frames_png_core/
+*.mp4
+*.ppm
+*.png
+
+# IDE and editor files
 .vscode/
 .idea/
 *.swp
@@ -31,3 +45,18 @@ Thumbs.db
 frames/
 bench_*.json
 benchmark_summary.txt
+# Compiled binaries
+*.exe
+*.out
+*.app
+*.so
+*.dylib
+*.dll
+
+# Object files
+*.o
+*.obj
+
+# Temporary files
+/tmp/
+*.tmp

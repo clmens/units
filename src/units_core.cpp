@@ -8,7 +8,7 @@
 #include <omp.h>
 #endif
 
-UnitsCore::UnitsCore(int width, int height, real_t max_value, bool torus)
+UnitsCore::UnitsCore(int width, int height, units_real max_value, bool torus)
     : m_width(width),
       m_height(height),
       m_max_value(max_value)
@@ -89,24 +89,27 @@ void UnitsCore::build_neighbors(bool torus)
     }
 }
 
-void UnitsCore::set_value(int x, int y, real_t v)
+void UnitsCore::set_value(int x, int y, units_real v)
 {
+    if (x < 0 || x >= m_width || y < 0 || y >= m_height) return;
     set_value_index(static_cast<std::size_t>(y) * m_width + x, v);
 }
 
-void UnitsCore::set_value_index(std::size_t idx, real_t v)
+void UnitsCore::set_value_index(std::size_t idx, units_real v)
 {
     if (idx >= m_values.size()) return;
     m_values[idx] = v;
 }
 
-real_t UnitsCore::value_at(int x, int y) const
+units_real UnitsCore::value_at(int x, int y) const
 {
+    if (x < 0 || x >= m_width || y < 0 || y >= m_height) return static_cast<units_real>(0.0);
     return value_at_index(static_cast<std::size_t>(y) * m_width + x);
 }
 
-real_t UnitsCore::value_at_index(std::size_t idx) const
+units_real UnitsCore::value_at_index(std::size_t idx) const
 {
+    if (idx >= m_values.size()) return static_cast<units_real>(0.0);
     return m_values[idx];
 }
 
@@ -120,7 +123,7 @@ void UnitsCore::update()
     #pragma omp parallel for schedule(static)
 #endif
     for (std::size_t i = 0; i < N; ++i) {
-        real_t v = m_values[i] + m_delta_steps[i] + m_deltas[i];
+        units_real v = m_values[i] + m_delta_steps[i] + m_deltas[i];
         if (v > m_max_value) v = m_max_value;
         else if (v < -m_max_value) v = -m_max_value;
         m_values[i] = v;
@@ -156,13 +159,13 @@ void UnitsCore::push()
     #pragma omp parallel
     {
         const int tid = omp_get_thread_num();
-        real_t* thread_accum = &m_per_thread_accum[tid * N];
-        
+        units_real* thread_accum = &m_per_thread_accum[static_cast<std::size_t>(tid) * N];
+
         // Zero out this thread's accumulator slice
         for (std::size_t i = 0; i < N; ++i) {
             thread_accum[i] = 0.0;
         }
-        
+
         // Source-centric: each thread processes a subset of source cells
         #pragma omp for schedule(static) nowait
         for (std::size_t i = 0; i < N; ++i) {
@@ -170,10 +173,10 @@ void UnitsCore::push()
             const int end = m_neighbor_index_start[i + 1];
             const int degree = end - start;
             if (degree == 0) continue;
-            
-            real_t delta = m_deltas[i];
-            real_t contrib = -delta / static_cast<real_t>(degree);
-            
+
+            units_real delta = m_deltas[i];
+            units_real contrib = -delta / static_cast<units_real>(degree);
+
             // Accumulate to neighbors in this thread's local buffer
             for (int ni = start; ni < end; ++ni) {
                 std::size_t nb = static_cast<std::size_t>(m_neighbors[ni]);
@@ -186,16 +189,16 @@ void UnitsCore::push()
     // Each output cell is written by exactly one thread, so no atomics needed
     #pragma omp parallel for schedule(static)
     for (std::size_t i = 0; i < N; ++i) {
-        real_t sum = 0.0;
+        units_real sum = 0.0;
         for (int tid = 0; tid < num_threads; ++tid) {
-            sum += m_per_thread_accum[tid * N + i];
+            sum += m_per_thread_accum[static_cast<std::size_t>(tid) * N + i];
         }
         m_delta_steps[i] += sum;
     }
 
 #else
     // ============================================================================
-    // Destination-centric push algorithm with atomic accumulation
+    // Destination-centric push algorithm with atomic accumulation (or serial fallback)
     // ============================================================================
     // Tradeoff: Uses atomic operations for thread-safe accumulation. Simple and
     // memory-efficient (only one temporary buffer of size N). Good cache locality
@@ -208,7 +211,7 @@ void UnitsCore::push()
 
     // To enable safe parallelization we will accumulate contributions into a temporary buffer
     // then apply them to m_delta_steps. This avoids simultaneous writes to the same slot.
-    std::vector<real_t> accum(N, 0.0);
+    std::vector<units_real> accum(N, 0.0);
 
 #ifdef _OPENMP
     #pragma omp parallel
@@ -219,8 +222,8 @@ void UnitsCore::push()
             const int end = m_neighbor_index_start[i + 1];
             const int degree = end - start;
             if (degree == 0) continue;
-            real_t delta = m_deltas[i];
-            real_t contrib = -delta / static_cast<real_t>(degree); // amount to add to each neighbor
+            units_real delta = m_deltas[i];
+            units_real contrib = -delta / static_cast<units_real>(degree); // amount to add to each neighbor
             for (int ni = start; ni < end; ++ni) {
                 std::size_t nb = static_cast<std::size_t>(m_neighbors[ni]);
                 #pragma omp atomic
@@ -234,8 +237,8 @@ void UnitsCore::push()
         const int end = m_neighbor_index_start[i + 1];
         const int degree = end - start;
         if (degree == 0) continue;
-        real_t delta = m_deltas[i];
-        real_t contrib = -delta / static_cast<real_t>(degree);
+        units_real delta = m_deltas[i];
+        units_real contrib = -delta / static_cast<units_real>(degree);
         for (int ni = start; ni < end; ++ni) {
             std::size_t nb = static_cast<std::size_t>(m_neighbors[ni]);
             accum[nb] += contrib;
