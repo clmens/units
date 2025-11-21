@@ -10,8 +10,6 @@ struct BenchConfig {
     int width = 128;
     int height = 128;
     int steps = 500;
-    bool use_float = false;
-    bool use_openmp = false;
 };
 
 BenchConfig parse_args(int argc, char** argv) {
@@ -24,18 +22,17 @@ BenchConfig parse_args(int argc, char** argv) {
             cfg.height = std::stoi(argv[++i]);
         } else if ((arg == "--steps" || arg == "-s") && i + 1 < argc) {
             cfg.steps = std::stoi(argv[++i]);
-        } else if (arg == "--use_float") {
-            cfg.use_float = true;
-        } else if (arg == "--use_openmp") {
-            cfg.use_openmp = true;
         } else if (arg == "--help") {
             std::cout << "Usage: bench_units [options]\n"
                       << "  --width <W>      Grid width (default: 128)\n"
                       << "  --height <H>     Grid height (default: 128)\n"
                       << "  --steps <S>      Number of simulation steps (default: 500)\n"
-                      << "  --use_float      Report if using float (informational)\n"
-                      << "  --use_openmp     Report if using OpenMP (informational)\n"
-                      << "  --help           Show this help\n";
+                      << "  --help           Show this help\n"
+                      << "\n"
+                      << "Build-time options (set via CMake):\n"
+                      << "  USE_FLOAT        Use float instead of double\n"
+                      << "  USE_OPENMP       Enable OpenMP parallelization\n"
+                      << "  USE_PER_THREAD_ACCUM  Use per-thread accumulators\n";
             std::exit(0);
         }
     }

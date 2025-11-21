@@ -9,6 +9,9 @@ on:
 jobs:
   benchmark:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        per_thread_accum: [ON, OFF]
     
     steps:
     - name: Checkout code
@@ -25,44 +28,44 @@ jobs:
           -DCMAKE_BUILD_TYPE=Release \
           -DUSE_OPENMP=ON \
           -DUSE_FLOAT=ON \
-          -DUSE_PER_THREAD_ACCUM=OFF
+          -DUSE_PER_THREAD_ACCUM=${{ matrix.per_thread_accum }}
     
     - name: Build
       run: cmake --build build --config Release -j
     
     - name: Run benchmark 128x128
       run: |
-        echo "Running 128x128 benchmark..."
-        ./build/bench/bench_units --width 128 --height 128 --steps 500 | tee bench_128x128.json
+        echo "Running 128x128 benchmark (per_thread_accum=${{ matrix.per_thread_accum }})..."
+        ./build/bench/bench_units --width 128 --height 128 --steps 500 | tee bench_128x128_${{ matrix.per_thread_accum }}.json
     
     - name: Run benchmark 512x512
       run: |
-        echo "Running 512x512 benchmark..."
-        ./build/bench/bench_units --width 512 --height 512 --steps 200 | tee bench_512x512.json
+        echo "Running 512x512 benchmark (per_thread_accum=${{ matrix.per_thread_accum }})..."
+        ./build/bench/bench_units --width 512 --height 512 --steps 200 | tee bench_512x512_${{ matrix.per_thread_accum }}.json
     
     - name: Run benchmark 1024x1024
       run: |
-        echo "Running 1024x1024 benchmark..."
-        ./build/bench/bench_units --width 1024 --height 1024 --steps 50 | tee bench_1024x1024.json
+        echo "Running 1024x1024 benchmark (per_thread_accum=${{ matrix.per_thread_accum }})..."
+        ./build/bench/bench_units --width 1024 --height 1024 --steps 50 | tee bench_1024x1024_${{ matrix.per_thread_accum }}.json
     
     - name: Combine results
       run: |
-        echo "=== Benchmark Summary ===" | tee benchmark_summary.txt
-        echo "" | tee -a benchmark_summary.txt
-        echo "128x128 (500 steps):" | tee -a benchmark_summary.txt
-        cat bench_128x128.json | tee -a benchmark_summary.txt
-        echo "" | tee -a benchmark_summary.txt
-        echo "512x512 (200 steps):" | tee -a benchmark_summary.txt
-        cat bench_512x512.json | tee -a benchmark_summary.txt
-        echo "" | tee -a benchmark_summary.txt
-        echo "1024x1024 (50 steps):" | tee -a benchmark_summary.txt
-        cat bench_1024x1024.json | tee -a benchmark_summary.txt
-        cat benchmark_summary.txt
+        echo "=== Benchmark Summary (per_thread_accum=${{ matrix.per_thread_accum }}) ===" | tee benchmark_summary_${{ matrix.per_thread_accum }}.txt
+        echo "" | tee -a benchmark_summary_${{ matrix.per_thread_accum }}.txt
+        echo "128x128 (500 steps):" | tee -a benchmark_summary_${{ matrix.per_thread_accum }}.txt
+        cat bench_128x128_${{ matrix.per_thread_accum }}.json | tee -a benchmark_summary_${{ matrix.per_thread_accum }}.txt
+        echo "" | tee -a benchmark_summary_${{ matrix.per_thread_accum }}.txt
+        echo "512x512 (200 steps):" | tee -a benchmark_summary_${{ matrix.per_thread_accum }}.txt
+        cat bench_512x512_${{ matrix.per_thread_accum }}.json | tee -a benchmark_summary_${{ matrix.per_thread_accum }}.txt
+        echo "" | tee -a benchmark_summary_${{ matrix.per_thread_accum }}.txt
+        echo "1024x1024 (50 steps):" | tee -a benchmark_summary_${{ matrix.per_thread_accum }}.txt
+        cat bench_1024x1024_${{ matrix.per_thread_accum }}.json | tee -a benchmark_summary_${{ matrix.per_thread_accum }}.txt
+        cat benchmark_summary_${{ matrix.per_thread_accum }}.txt
     
     - name: Upload benchmark results
       uses: actions/upload-artifact@v4
       with:
-        name: benchmark-results
+        name: benchmark-results-per-thread-${{ matrix.per_thread_accum }}
         path: |
           bench_*.json
-          benchmark_summary.txt
+          benchmark_summary_*.txt

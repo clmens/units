@@ -45,6 +45,11 @@ ViewerConfig parse_args(int argc, char** argv) {
 
 // Helper function to convert real_t values to RGBA pixels
 void convert_to_rgba(const std::vector<real_t>& values, std::vector<uint8_t>& pixels, int width, int height) {
+    if (values.empty()) {
+        pixels.clear();
+        return;
+    }
+    
     // Find min/max for normalization
     real_t min_val = values[0];
     real_t max_val = values[0];
@@ -59,6 +64,8 @@ void convert_to_rgba(const std::vector<real_t>& values, std::vector<uint8_t>& pi
     pixels.resize(width * height * 4);
     for (std::size_t i = 0; i < values.size(); ++i) {
         real_t normalized = (values[i] - min_val) / range;
+        // Clamp to [0, 1] to prevent overflow
+        normalized = std::min(real_t(1.0), std::max(real_t(0.0), normalized));
         uint8_t intensity = static_cast<uint8_t>(normalized * 255.0);
         
         pixels[i * 4 + 0] = intensity; // R
