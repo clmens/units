@@ -65,18 +65,21 @@ int main(int argc, char** argv) {
             for (int x = 0; x < width; ++x) {
                 std::size_t idx = y * width + x;
                 units_real v = values[idx];
-                units_real n = (v / maxv) * 0.5 + 0.5;
-                n = std::min(static_cast<units_real>(1.0), std::max(static_cast<units_real>(0.0), n));
                 
                 // Create colored output: blue for negative, red for positive
                 uint8_t r = 0, g = 0, b = 0;
                 if (v > 0) {
-                    r = static_cast<uint8_t>(std::round(n * 255.0));
-                    g = static_cast<uint8_t>(std::round(n * 128.0));
-                } else {
-                    b = static_cast<uint8_t>(std::round(n * 255.0));
-                    g = static_cast<uint8_t>(std::round(n * 128.0));
+                    // Positive values: red with some green
+                    units_real intensity = v / maxv;
+                    r = static_cast<uint8_t>(std::round(intensity * 255.0));
+                    g = static_cast<uint8_t>(std::round(intensity * 128.0));
+                } else if (v < 0) {
+                    // Negative values: blue with some green
+                    units_real intensity = (-v) / maxv;
+                    b = static_cast<uint8_t>(std::round(intensity * 255.0));
+                    g = static_cast<uint8_t>(std::round(intensity * 128.0));
                 }
+                // v == 0 remains black (r=0, g=0, b=0)
                 
                 std::size_t off = idx * 3;
                 rgb[off + 0] = r;
