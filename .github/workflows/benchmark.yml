@@ -9,6 +9,9 @@ on:
 jobs:
   benchmark:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read
     strategy:
       matrix:
         per_thread_accum: [ON, OFF]
