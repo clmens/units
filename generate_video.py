@@ -31,7 +31,7 @@ def parse_args():
     p.add_argument("--contrast", type=float, default=1.0, help="global contrast multiplier")
     p.add_argument("--gamma", type=float, default=1.0, help="gamma correction applied after colormap")
     p.add_argument("--output", "-o", type=str, default="out.mkv", help="output filename")
-    p.add_argument("--codec", choices=["ffv1", "libx264", "libx265"], default="libx265",
+    p.add_argument("--codec", choices=["ffv1", "libx264", "libx265"], default="ffv1",
                    help="lossless codec to use: ffv1, libx264 (H.264 lossless), or libx265 (HEVC lossless - default)")
     p.add_argument("--colormap", type=str, default="plasma",
                    help="colormap name to apply (matplotlib colormap). Use 'gray' for grayscale. Falls back to gray if matplotlib not available.")
