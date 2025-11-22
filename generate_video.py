@@ -27,7 +27,7 @@ def parse_args():
     p.add_argument("--frames", "-n", type=int, default=10000, help="number of frames to generate")
     p.add_argument("--fps", type=int, default=30, help="frames per second for the video")
     p.add_argument("--seed", type=int, default=1337, help="random seed (reproducible)")
-    p.add_argument("--noise", type=float, default=0.01, help="per-frame noise amplitude (0..1)")
+    p.add_argument("--noise", type=float, default=0.00, help="per-frame noise amplitude (0..1)")
     p.add_argument("--contrast", type=float, default=1.0, help="global contrast multiplier")
     p.add_argument("--gamma", type=float, default=1.0, help="gamma correction applied after colormap")
     p.add_argument("--output", "-o", type=str, default="out.mkv", help="output filename")
