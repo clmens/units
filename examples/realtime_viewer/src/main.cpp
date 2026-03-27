@@ -8,6 +8,9 @@
 #include <vector>
 
 #ifdef USE_GPU_COLORMAP
+// GLEW must be included before any OpenGL headers
+#define GLEW_STATIC
+#include <GL/glew.h>
 #include <SDL2/SDL_opengl.h>
 #include <GL/gl.h>
 #endif
@@ -235,6 +238,19 @@ int main(int argc, char** argv) {
     
     SDL_GL_SetSwapInterval(1); // Enable vsync
     
+    // Initialize GLEW for modern OpenGL functions
+    glewExperimental = GL_TRUE;
+    GLenum glew_err = glewInit();
+    if (glew_err != GLEW_OK) {
+        std::cerr << "GLEW initialization failed: " << glewGetErrorString(glew_err) << "\n";
+        SDL_GL_DeleteContext(gl_context);
+        SDL_DestroyWindow(window);
+        SDL_Quit();
+        return 1;
+    }
+    
+    std::cout << "Using GPU colormap rendering (OpenGL " << glGetString(GL_VERSION) << ")\n";
+    
     // Initialize GPU renderer
     GPUColormapRenderer gpu_renderer(cfg.width, cfg.height);
     if (!gpu_renderer.init()) {
@@ -245,7 +261,7 @@ int main(int argc, char** argv) {
         return 1;
     }
     
-    std::cout << "Using GPU colormap rendering (OpenGL)\n";
+    std::cout << "GPU renderer initialized successfully\n";
 #else
     // Use SDL renderer for CPU fallback
     int window_width = cfg.width * cfg.scale;
