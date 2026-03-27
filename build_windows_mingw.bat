@@ -18,4 +18,5 @@ REM Build
 cmake --build . --parallel 4
 
 cd ..
+echo Build completed. Executables are in build_mingw\
 pause
