@@ -60,3 +60,4 @@ benchmark_summary.txt
 # Temporary files
 /tmp/
 *.tmp
+.aider*
